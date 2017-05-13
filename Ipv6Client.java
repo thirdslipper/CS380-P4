@@ -1,71 +1,92 @@
-import java.io.BufferedReader;
+/**
+ * Author: Colin Koo
+ * Professor: Nima Davarpanah
+ * Description: Ipv6 Packet format implementation.
+ */
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.net.Inet6Address;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
 
 public class Ipv6Client {
-
+	/**
+	 * Sends Ipv6 packets in sizes of 2-4096 bytes- powers of 2 to the server.
+	 * @param args
+	 * @throws UnknownHostException
+	 */
 	public static void main(String[] args) throws UnknownHostException {
 		try (Socket socket = new Socket("codebank.xyz", 38004)){
 
 			InputStream is = socket.getInputStream();
-			InputStreamReader isr = new InputStreamReader(is, "UTF-8");
-			BufferedReader br = new BufferedReader(isr);
-
 			OutputStream os = socket.getOutputStream();
 			PrintStream ps = new PrintStream(os);
 
-			int size = 1;
-			for (int i = 0; i < 1; ++i){
+			short size = 1;
+			for (int i = 0; i < 12; ++i){
 				size <<= 1;
 				System.out.println("Data length: " + size);
 				ps.write(getPackets(size));
-//				System.out.println(br.readLine() + "\n");
+				serverCode(is);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
-	public static byte[] getPackets(int size){
-		byte[] packets = new byte[40+size];
-		packets[0] = (byte) ((packets[0] | 7) << 4); // version/traff/flow
+	/**
+	 * Ipv6 formatting, where 0's in the packets are intentionally not declared because of the array
+	 * initialization default values being 0.
+	 * These fields include Version, Traffic Class, Flow Label, Payload length, Next Header, Hop Limit, 
+	 * Source Address, and Destination Address, where the Traffic Class and Flow Label fields
+	 * are intentionally not implemented.
+	 * @param size
+	 * @return
+	 */
+	public static byte[] getPackets(short size){
+		short length = (short) (40+size);
+		byte[] packets = new byte[length];
 
-		packets[4] = (byte) (size << 8);			// payload- len of only data in bytes
-		packets[5] = (byte) (size & 0xFF);
-		packets[6] = 0x11; 	//next header
+		packets[0] = 6;
+		packets[0] <<= 4;
+		//packet bytes 1-3 are 0's representing nonimplemented traffic class/flow label.
+
+		packets[4] = (byte) ((size >> 8) & 0xFF);			// payload- len of only data in bytes
+		packets[5] = (byte) (size & 0xFF);					
+		packets[6] = 0x11; 	//next header, UDP = 0x11
 		packets[7] = 20;	//hop limit
 		
-		packets[8] = (byte) 0xfe;
-		packets[9] = (byte) 0x80;
-		packets[10] = (byte) 0xe5;
-		packets[11] = (byte) 0x4a;
-		packets[12] = (byte) 0x85;
-		packets[13] = (byte) 0x0e;
-		packets[14] = (byte) 0x33;
-		packets[15] = (byte) 0x77;
-		packets[16] = (byte) 0x64;
-		packets[17] = (byte) 0x87;
+		//8-19 9's, 96 bits
+		packets[18] = (byte) 0xFF;
+		packets[19] = (byte) 0xFF;
+		packets[20] = (byte) 76; 	//Src inet address: 0:0:0:0:0:FFFF:4CAF:55AE
+		packets[21] = (byte) 175;	//255.255.76.175.85.174
+		packets[22] = (byte) 85;	
+		packets[23] = (byte) 174;
 		
-		packets[23] = (byte) 0xff;
-		packets[24] = (byte) 0xff;
-		packets[25] = (byte) 0x36;
-		packets[26] = (byte) 0x25;
-		packets[27] = (byte) 0x58;
-		packets[28] = (byte) 0x9a;
+		packets[34] = (byte) 0xFF;
+		packets[35] = (byte) 0xFF;
+		packets[36] = (byte) 52;	//Dest socket inet address : 52.37.88.154
+		packets[37] = (byte) 37;	//255.255.52.37.88.15
+		packets[38] = (byte) 88;
+		packets[39] = (byte) 154;
 		
 		return packets;
 	}
-	public static void serverCode(Socket socket, BufferedReader br){
-		byte[] response = new byte[4];
+	/**
+	 * This method prints the message received from the server after each sent Ipv6 packet.
+	 * @param is
+	 */
+	public static void serverCode(InputStream is){
+		System.out.print("Response: 0x");
 		for (int i = 0; i < 4; ++i){
-			response[i] = br.read();
+			try {
+				System.out.print(Integer.toHexString(is.read()).toUpperCase());
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
+		System.out.println();
 	}
 }
